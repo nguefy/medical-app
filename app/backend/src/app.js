@@ -5,6 +5,7 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 const patientRoutes = require('./routes/patient.routes');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 
@@ -13,14 +14,13 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
-// Endpoint de santé — utile pour les liveness/readiness probes Kubernetes
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 
-// Handler d'erreur global
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(err.status || 500).json({ error: err.message || 'Erreur serveur interne' });

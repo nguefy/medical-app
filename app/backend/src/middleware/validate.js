@@ -1,6 +1,5 @@
 const { body, param, validationResult } = require('express-validator');
 
-// Renvoie 400 avec le détail des erreurs si la validation échoue
 function handleValidation(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -20,4 +19,15 @@ const patientRules = [
 
 const idParamRule = [param('id').isUUID().withMessage('Identifiant patient invalide')];
 
-module.exports = { handleValidation, patientRules, idParamRule };
+const registerRules = [
+  body('username').trim().isLength({ min: 3 }).withMessage('Nom d\'utilisateur trop court (min 3 caractères)'),
+  body('password').isLength({ min: 8 }).withMessage('Mot de passe trop court (min 8 caractères)'),
+  body('role').optional().isIn(['staff', 'admin']).withMessage('Rôle invalide'),
+];
+
+const loginRules = [
+  body('username').trim().notEmpty().withMessage('Nom d\'utilisateur requis'),
+  body('password').notEmpty().withMessage('Mot de passe requis'),
+];
+
+module.exports = { handleValidation, patientRules, idParamRule, registerRules, loginRules };
