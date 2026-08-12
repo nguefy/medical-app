@@ -81,6 +81,70 @@ curl http://localhost:3000/health
 | PUT | `/api/patients/:id` | Modifier un patient | Oui |
 | DELETE | `/api/patients/:id` | Supprimer un patient | Oui |
 
+
+## Ingress (NGINX)
+
+### Mise en place
+
+1. Activation de l'addon Ingress sur Minikube :
+```bash
+   minikube addons enable ingress
+```
+
+2. Manifeste `k8s/ingress.yaml` — routing path-based explicite :
+   - `/api` → service `backend` (port 3000)
+   - `/` → service `frontend` (port 80)
+
+```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: medical-app-ingress
+     namespace: medical-app
+   spec:
+     ingressClassName: nginx
+     rules:
+       - host: medical-app.local
+         http:
+           paths:
+             - path: /api
+               pathType: Prefix
+               backend:
+                 service:
+                   name: backend
+                   port:
+                     number: 3000
+             - path: /
+               pathType: Prefix
+               backend:
+                 service:
+                   name: frontend
+                   port:
+                     number: 80
+```
+
+3. Le proxy `/api` dans la config Nginx du frontend a été retiré : le routing `/api` est désormais géré entièrement par l'Ingress, plus par le reverse proxy interne du conteneur frontend.
+
+### Accès en local (WSL2 + driver Docker)
+
+Avec Minikube en driver `docker` sous WSL2, l'IP du cluster (`minikube ip`) n'est pas routable directement depuis l'hôte WSL2 (`ping` et `curl` vers cette IP timeout, y compris sur les NodePort). Solution retenue : `kubectl port-forward` vers le service du contrôleur Ingress.
+
+```bash
+kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8081:80
+```
+
+Puis dans un autre terminal :
+
+```bash
+curl -H "Host: medical-app.local" http://localhost:8081/
+curl -H "Host: medical-app.local" http://localhost:8081/api/patients
+```
+
+- `/` → renvoie le HTML du frontend React
+- `/api/patients` → renvoie `{"error":"Token manquant"}` (comportement attendu sans JWT, prouve que le routing atteint bien le backend)
+
+Alternative non testée pour un accès plus direct (sans port-forward) : `minikube tunnel`.
+
 ## Roadmap du projet
 
 - [x] API backend (CRUD patients, validation, auth JWT)

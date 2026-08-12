@@ -4,3 +4,5 @@ node_modules/
 dist/
 coverage/
 .DS_Store
+k8s/backend-secret.yaml
+k8s/postgres-secret.yaml
