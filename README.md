@@ -145,6 +145,46 @@ curl -H "Host: medical-app.local" http://localhost:8081/api/patients
 
 Alternative non testée pour un accès plus direct (sans port-forward) : `minikube tunnel`.
 
+## Resource requests & limits
+
+### Pourquoi
+
+Sans `requests`/`limits`, un pod peut consommer toutes les ressources disponibles sur le nœud et affecter les autres pods. Les `requests` garantissent un minimum réservé (utilisé par le scheduler pour placer le pod) ; les `limits` fixent un plafond (throttling pour le CPU, `OOMKilled` pour la mémoire en cas de dépassement).
+
+### Méthodologie
+
+Valeurs calibrées à partir d'une mesure réelle plutôt que devinées à l'aveugle :
+
+```bash
+kubectl top pods -n medical-app
+```
+
+Consommation observée au repos (pods sans trafic) :
+
+| Pod | CPU | Mémoire |
+|---|---|---|
+| backend | 2m | 87Mi |
+| frontend | 1m | 4Mi |
+| postgres | 7m | 43Mi |
+
+Une marge x5 à x10 a été appliquée sur ces valeurs de repos pour absorber les pics de charge (requêtes simultanées, hashing bcrypt côté backend, connexions/requêtes côté Postgres).
+
+### Valeurs retenues
+
+| Service | CPU request | CPU limit | Mémoire request | Mémoire limit |
+|---|---|---|---|---|
+| backend | 50m | 250m | 128Mi | 256Mi |
+| frontend | 10m | 100m | 32Mi | 64Mi |
+| postgres | 100m | 500m | 128Mi | 256Mi |
+
+### Vérification
+
+```bash
+kubectl describe pod -n medical-app -l app=<nom> | grep -A 6 "Limits\|Requests"
+```
+
+Confirme que les valeurs appliquées via `kubectl apply -f k8s/<service>-deployment.yaml` correspondent bien à celles définies dans le manifeste.
+
 ## Roadmap du projet
 
 - [x] API backend (CRUD patients, validation, auth JWT)
