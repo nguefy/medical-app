@@ -29,6 +29,13 @@ spec:
               subPath: postgres
             - name: postgres-init
               mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "medical_user", "-d", "medical_db"]
