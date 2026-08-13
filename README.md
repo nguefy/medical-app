@@ -185,6 +185,55 @@ kubectl describe pod -n medical-app -l app=<nom> | grep -A 6 "Limits\|Requests"
 
 Confirme que les valeurs appliquées via `kubectl apply -f k8s/<service>-deployment.yaml` correspondent bien à celles définies dans le manifeste.
 
+## Horizontal Pod Autoscaler (HPA)
+
+### Mise en place
+
+`k8s/backend-hpa.yaml` — autoscaling du backend basé sur le CPU, cible 50% d'utilisation par rapport à la `request` définie (50m) :
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: medical-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+```
+
+Prérequis : metrics-server (déjà actif via l'addon Minikube) et des `resources.requests.cpu` définies sur le Deployment cible — le HPA calcule son pourcentage par rapport à cette valeur.
+
+### Test de charge
+
+Charge simulée avec un pod temporaire spammant `/health` en boucle :
+
+```bash
+kubectl run -n medical-app load-generator --image=busybox --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://backend:3000/health; done"
+```
+
+Résultats observés (`kubectl get hpa -n medical-app -w`) :
+
+| Phase | CPU / cible | Replicas |
+|---|---|---|
+| Repos | 4%/50% | 1 |
+| Pic de charge | 450%/50% | 1 → 4 (quasi instantané) |
+| Charge soutenue (répartie sur 4 pods) | ~150%/50% | 4 |
+| Après suppression du load-generator | 2-4%/50% | retour à 1 (après fenêtre de stabilisation, ~5 min par défaut) |
+
+Le scale down est volontairement plus lent que le scale up, pour éviter les oscillations si la charge remonte rapidement après une baisse temporaire.
+
 ## Roadmap du projet
 
 - [x] API backend (CRUD patients, validation, auth JWT)
