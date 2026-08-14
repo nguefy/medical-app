@@ -234,6 +234,36 @@ Résultats observés (`kubectl get hpa -n medical-app -w`) :
 
 Le scale down est volontairement plus lent que le scale up, pour éviter les oscillations si la charge remonte rapidement après une baisse temporaire.
 
+## NetworkPolicies
+
+### Prérequis
+
+Le CNI par défaut de Minikube (Kindnet) ne supporte pas les NetworkPolicies — les policies seraient créées sans effet. Le cluster a été recréé sous un profil dédié avec Calico :
+
+```bash
+minikube start -p medical-app-cluster --cni calico
+```
+
+(profil séparé pour ne pas impacter d'autres projets tournant sur le profil Minikube par défaut)
+
+### Stratégie : deny-by-default + allow explicite
+
+- `default-deny-ingress` — bloque tout le trafic entrant non explicitement autorisé, dans le namespace `medical-app`
+- `allow-ingress-to-frontend` / `allow-ingress-to-backend` — autorisent le trafic entrant depuis le namespace `ingress-nginx`
+- `allow-frontend-to-backend` — frontend peut appeler backend sur le port 3000
+- `allow-backend-to-postgres` — seul backend peut appeler postgres sur le port 5432
+- `allow-dns` — résolution DNS autorisée pour tous les pods
+
+### Validation
+
+| Test | Résultat attendu | Résultat observé |
+|---|---|---|
+| Ingress → frontend/backend | Fonctionne | ✅ HTML + réponse API |
+| backend → postgres | Fonctionne | ✅ `/health` → `{"status":"ok"}`, `/api/patients` → 401 (auth atteinte, donc DB ok) |
+| frontend → postgres (direct) | Bloqué | ✅ Timeout confirmé |
+
+Le point clé : même si `frontend` connaît l'adresse du service `postgres` (résolution DNS interne au cluster), Calico bloque la connexion réseau au niveau du CNI — la sécurité ne repose pas sur l'obscurité d'un nom de service.
+
 ## Roadmap du projet
 
 - [x] API backend (CRUD patients, validation, auth JWT)
