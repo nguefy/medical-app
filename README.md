@@ -1,12 +1,12 @@
-# Medical Records App — Portfolio DevOps
+# Medical Records App — DevOps Portfolio Project
 
-Application de gestion de dossiers patients, conçue comme projet portfolio pour démontrer une chaîne DevOps complète : développement backend/frontend, conteneurisation, orchestration Kubernetes, Infrastructure as Code avec Terraform, CI/CD avec GitHub Actions, et observabilité.
+Patient records management application, built as a portfolio project to demonstrate a complete DevOps chain: backend/frontend development, containerization, Kubernetes orchestration, Infrastructure as Code with Terraform, CI/CD with GitHub Actions, and observability.
 
-> ⚠️ **Projet pédagogique** — aucune donnée patient réelle n'est utilisée. Toutes les données sont fictives et générées à des fins de démonstration.
+> ⚠️ **Educational project** — no real patient data is used. All data is fictional and generated for demonstration purposes.
 
-## Objectif
+## Goal
 
-Ce projet a pour but de montrer, de bout en bout, comment concevoir, déployer et opérer une application web sensible (données de santé) en suivant les bonnes pratiques DevOps modernes : conteneurisation, automatisation, infrastructure versionnée, pipelines CI/CD et supervision applicative.
+This project aims to show, end to end, how to design, deploy, and operate a sensitive web application (health data) following modern DevOps best practices: containerization, automation, infrastructure as code, CI/CD pipelines, and application monitoring.
 
 ## Architecture
 
@@ -27,21 +27,21 @@ Ce projet a pour but de montrer, de bout en bout, comment concevoir, déployer e
    Prometheus / Grafana / Loki (observabilité)
 ```
 
-## Stack technique
+## Tech stack
 
-| Domaine | Technologie |
+| Domain | Technology |
 |---|---|
-| Backend | Node.js, Express, node-postgres (SQL brut) |
+| Backend | Node.js, Express, node-postgres (raw SQL) |
 | Frontend | React |
-| Base de données | PostgreSQL |
-| Authentification | JWT |
-| Conteneurisation | Docker, Docker Compose |
-| Orchestration | Kubernetes (Minikube en local, EKS en cible cloud) |
+| Database | PostgreSQL |
+| Authentication | JWT |
+| Containerization | Docker, Docker Compose |
+| Orchestration | Kubernetes (Minikube locally, EKS as cloud target) |
 | Infrastructure as Code | Terraform |
 | CI/CD | GitHub Actions |
-| Observabilité | Prometheus, Grafana, Loki |
+| Observability | Prometheus, Grafana, Loki |
 
-## Structure du repo
+## Repository structure
 
 ```
 medical-app/
@@ -54,227 +54,51 @@ medical-app/
 └── docker-compose.yml # Environnement de dev local
 ```
 
-## Démarrage rapide (local)
 
-Prérequis : Docker et Docker Compose installés.
+## Quick start (local)
+
+Prerequisites: Docker and Docker Compose installed.
 
 ```bash
-git clone <url-du-repo>
+git clone <repo-url>
 cd medical-app
 docker compose up --build
 ```
 
-L'API sera disponible sur `http://localhost:3000`. Vérifier qu'elle répond :
+The API will be available at `http://localhost:3000`. Check it's responding:
 
 ```bash
 curl http://localhost:3000/health
 ```
 
-## Fonctionnalités de l'API
+## API features
 
-| Méthode | Endpoint | Description | Auth requise |
+| Method | Endpoint | Description | Auth required |
 |---|---|---|---|
-| GET | `/health` | Vérification de l'état du service | Non |
-| GET | `/api/patients` | Liste des patients | Oui |
-| GET | `/api/patients/:id` | Détail d'un patient | Oui |
-| POST | `/api/patients` | Créer un patient | Oui |
-| PUT | `/api/patients/:id` | Modifier un patient | Oui |
-| DELETE | `/api/patients/:id` | Supprimer un patient | Oui |
+| GET | `/health` | Service health check | No |
+| GET | `/api/patients` | List patients | Yes |
+| GET | `/api/patients/:id` | Patient details | Yes |
+| POST | `/api/patients` | Create a patient | Yes |
+| PUT | `/api/patients/:id` | Update a patient | Yes |
+| DELETE | `/api/patients/:id` | Delete a patient | Yes |
 
+## Kubernetes configuration
 
-## Ingress (NGINX)
+The Kubernetes deployment includes: exposure via Ingress (path-based routing), resource requests/limits calibrated from real measurements, autoscaling (HPA) tested under load, NetworkPolicies (deny-by-default with Calico), and a PodDisruptionBudget for resilience.
 
-### Mise en place
+📄 Full details, manifests, and test results: [docs/kubernetes.md](docs/kubernetes.md)
 
-1. Activation de l'addon Ingress sur Minikube :
-```bash
-   minikube addons enable ingress
-```
+## Project roadmap
 
-2. Manifeste `k8s/ingress.yaml` — routing path-based explicite :
-   - `/api` → service `backend` (port 3000)
-   - `/` → service `frontend` (port 80)
+- [x] Backend API (patient CRUD, validation, JWT auth)
+- [x] Docker containerization + Docker Compose (local environment)
+- [ ] Authentication route (login)
+- [ ] React frontend
+- [ ] Kubernetes deployment (Minikube)
+- [ ] Cloud infrastructure with Terraform
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Observability (Prometheus, Grafana, Loki)
 
-```yaml
-   apiVersion: networking.k8s.io/v1
-   kind: Ingress
-   metadata:
-     name: medical-app-ingress
-     namespace: medical-app
-   spec:
-     ingressClassName: nginx
-     rules:
-       - host: medical-app.local
-         http:
-           paths:
-             - path: /api
-               pathType: Prefix
-               backend:
-                 service:
-                   name: backend
-                   port:
-                     number: 3000
-             - path: /
-               pathType: Prefix
-               backend:
-                 service:
-                   name: frontend
-                   port:
-                     number: 80
-```
+## License
 
-3. Le proxy `/api` dans la config Nginx du frontend a été retiré : le routing `/api` est désormais géré entièrement par l'Ingress, plus par le reverse proxy interne du conteneur frontend.
-
-### Accès en local (WSL2 + driver Docker)
-
-Avec Minikube en driver `docker` sous WSL2, l'IP du cluster (`minikube ip`) n'est pas routable directement depuis l'hôte WSL2 (`ping` et `curl` vers cette IP timeout, y compris sur les NodePort). Solution retenue : `kubectl port-forward` vers le service du contrôleur Ingress.
-
-```bash
-kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8081:80
-```
-
-Puis dans un autre terminal :
-
-```bash
-curl -H "Host: medical-app.local" http://localhost:8081/
-curl -H "Host: medical-app.local" http://localhost:8081/api/patients
-```
-
-- `/` → renvoie le HTML du frontend React
-- `/api/patients` → renvoie `{"error":"Token manquant"}` (comportement attendu sans JWT, prouve que le routing atteint bien le backend)
-
-Alternative non testée pour un accès plus direct (sans port-forward) : `minikube tunnel`.
-
-## Resource requests & limits
-
-### Pourquoi
-
-Sans `requests`/`limits`, un pod peut consommer toutes les ressources disponibles sur le nœud et affecter les autres pods. Les `requests` garantissent un minimum réservé (utilisé par le scheduler pour placer le pod) ; les `limits` fixent un plafond (throttling pour le CPU, `OOMKilled` pour la mémoire en cas de dépassement).
-
-### Méthodologie
-
-Valeurs calibrées à partir d'une mesure réelle plutôt que devinées à l'aveugle :
-
-```bash
-kubectl top pods -n medical-app
-```
-
-Consommation observée au repos (pods sans trafic) :
-
-| Pod | CPU | Mémoire |
-|---|---|---|
-| backend | 2m | 87Mi |
-| frontend | 1m | 4Mi |
-| postgres | 7m | 43Mi |
-
-Une marge x5 à x10 a été appliquée sur ces valeurs de repos pour absorber les pics de charge (requêtes simultanées, hashing bcrypt côté backend, connexions/requêtes côté Postgres).
-
-### Valeurs retenues
-
-| Service | CPU request | CPU limit | Mémoire request | Mémoire limit |
-|---|---|---|---|---|
-| backend | 50m | 250m | 128Mi | 256Mi |
-| frontend | 10m | 100m | 32Mi | 64Mi |
-| postgres | 100m | 500m | 128Mi | 256Mi |
-
-### Vérification
-
-```bash
-kubectl describe pod -n medical-app -l app=<nom> | grep -A 6 "Limits\|Requests"
-```
-
-Confirme que les valeurs appliquées via `kubectl apply -f k8s/<service>-deployment.yaml` correspondent bien à celles définies dans le manifeste.
-
-## Horizontal Pod Autoscaler (HPA)
-
-### Mise en place
-
-`k8s/backend-hpa.yaml` — autoscaling du backend basé sur le CPU, cible 50% d'utilisation par rapport à la `request` définie (50m) :
-
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: backend-hpa
-  namespace: medical-app
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: backend
-  minReplicas: 1
-  maxReplicas: 4
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 50
-```
-
-Prérequis : metrics-server (déjà actif via l'addon Minikube) et des `resources.requests.cpu` définies sur le Deployment cible — le HPA calcule son pourcentage par rapport à cette valeur.
-
-### Test de charge
-
-Charge simulée avec un pod temporaire spammant `/health` en boucle :
-
-```bash
-kubectl run -n medical-app load-generator --image=busybox --restart=Never -- /bin/sh -c "while true; do wget -q -O- http://backend:3000/health; done"
-```
-
-Résultats observés (`kubectl get hpa -n medical-app -w`) :
-
-| Phase | CPU / cible | Replicas |
-|---|---|---|
-| Repos | 4%/50% | 1 |
-| Pic de charge | 450%/50% | 1 → 4 (quasi instantané) |
-| Charge soutenue (répartie sur 4 pods) | ~150%/50% | 4 |
-| Après suppression du load-generator | 2-4%/50% | retour à 1 (après fenêtre de stabilisation, ~5 min par défaut) |
-
-Le scale down est volontairement plus lent que le scale up, pour éviter les oscillations si la charge remonte rapidement après une baisse temporaire.
-
-## NetworkPolicies
-
-### Prérequis
-
-Le CNI par défaut de Minikube (Kindnet) ne supporte pas les NetworkPolicies — les policies seraient créées sans effet. Le cluster a été recréé sous un profil dédié avec Calico :
-
-```bash
-minikube start -p medical-app-cluster --cni calico
-```
-
-(profil séparé pour ne pas impacter d'autres projets tournant sur le profil Minikube par défaut)
-
-### Stratégie : deny-by-default + allow explicite
-
-- `default-deny-ingress` — bloque tout le trafic entrant non explicitement autorisé, dans le namespace `medical-app`
-- `allow-ingress-to-frontend` / `allow-ingress-to-backend` — autorisent le trafic entrant depuis le namespace `ingress-nginx`
-- `allow-frontend-to-backend` — frontend peut appeler backend sur le port 3000
-- `allow-backend-to-postgres` — seul backend peut appeler postgres sur le port 5432
-- `allow-dns` — résolution DNS autorisée pour tous les pods
-
-### Validation
-
-| Test | Résultat attendu | Résultat observé |
-|---|---|---|
-| Ingress → frontend/backend | Fonctionne | ✅ HTML + réponse API |
-| backend → postgres | Fonctionne | ✅ `/health` → `{"status":"ok"}`, `/api/patients` → 401 (auth atteinte, donc DB ok) |
-| frontend → postgres (direct) | Bloqué | ✅ Timeout confirmé |
-
-Le point clé : même si `frontend` connaît l'adresse du service `postgres` (résolution DNS interne au cluster), Calico bloque la connexion réseau au niveau du CNI — la sécurité ne repose pas sur l'obscurité d'un nom de service.
-
-## Roadmap du projet
-
-- [x] API backend (CRUD patients, validation, auth JWT)
-- [x] Conteneurisation Docker + Docker Compose (environnement local)
-- [ ] Route d'authentification (login)
-- [ ] Frontend React
-- [ ] Déploiement Kubernetes (Minikube)
-- [ ] Infrastructure cloud avec Terraform
-- [ ] Pipeline CI/CD (GitHub Actions)
-- [ ] Observabilité (Prometheus, Grafana, Loki)
-
-## Licence
-
-Projet à but pédagogique / portfolio.
+Educational / portfolio project.
